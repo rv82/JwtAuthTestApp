@@ -1,10 +1,14 @@
 using System.IdentityModel.Tokens.Jwt;
 using AuthTest.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization.Policy;
 using Microsoft.IdentityModel.Logging;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
+using IdentityModel;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 var configuration = builder.Configuration;
@@ -13,38 +17,46 @@ IdentityModelEventSource.ShowPII = true;
 
 // Add services to the container.
 
-//builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-//builder.Services.AddAuthentication(OpenIdConnectDefaults.AuthenticationScheme)
 builder.Services
-    .AddAuthentication(options =>
+    .AddAuthentication(option =>
     {
-        options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-        options.DefaultChallengeScheme = OpenIdConnectDefaults.AuthenticationScheme;
+        option.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
+        option.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+        option.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
     })
-    .AddCookie(CookieAuthenticationDefaults.AuthenticationScheme)
-    .AddOpenIdConnect(OpenIdConnectDefaults.AuthenticationScheme, options =>
+    //.AddCookie(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, options =>
     {
-        options.Authority = configuration["Keycloak:Authority"];
-        options.ClientId = configuration["Keycloak:ClientId"];
-        options.ClientSecret = configuration["Keycloak:ClientSecret"];
-        options.CallbackPath = configuration["Keycloak:CallbackPath"];
-        options.ResponseType = OpenIdConnectResponseType.Code;
-        options.SaveTokens = true;
+        var jsonKeyString = File.ReadAllText("key.json");
+        var issuerSigningKey = new JsonWebKey(jsonKeyString);
+
+        options.SaveToken = true;
+        options.RequireHttpsMetadata = false;
         options.TokenValidationParameters = new TokenValidationParameters
         {
-            ValidateIssuerSigningKey = false,
-            SignatureValidator = (token, param) =>
-            {
-                var jwt = new JwtSecurityToken(token);
-                return jwt;
-            }
-        };
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
 
-        if (builder.Environment.IsDevelopment())
-        {
-            options.RequireHttpsMetadata = false;
-        }
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = issuerSigningKey,
+            LifetimeValidator = (DateTime? notBefore, DateTime? expires, SecurityToken securityToken, TokenValidationParameters validationParameters) =>
+            {
+                if (expires.HasValue)
+                {
+                    var time = expires.Value.Kind == DateTimeKind.Utc ? expires.Value.ToLocalTime() : expires.Value;
+                    return time <= DateTime.Now;
+                }
+                return false;
+            },
+
+            ValidIssuer = configuration["Jwt:Issuer"],
+            ValidAudience = configuration["Jwt:Audience"],
+            //IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(configuration["Jwt:SecretKey"]))
+        };
     });
+
+//builder.Services.AddAuthorization();
 
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
@@ -65,8 +77,8 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-app.UseAuthorization();
 app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapControllers();
 
