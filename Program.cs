@@ -7,8 +7,8 @@ using Microsoft.AspNetCore.Authorization.Policy;
 using Microsoft.IdentityModel.Logging;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
-using IdentityModel;
 using System.Text;
+using AuthTest.Middlewares;
 
 var builder = WebApplication.CreateBuilder(args);
 var configuration = builder.Configuration;
@@ -24,7 +24,6 @@ builder.Services
         option.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
         option.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
     })
-    //.AddCookie(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, options =>
     {
         var jsonKeyString = File.ReadAllText("key.json");
@@ -56,7 +55,7 @@ builder.Services
         };
     });
 
-//builder.Services.AddAuthorization();
+builder.Services.AddAuthorization();
 
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
@@ -65,6 +64,7 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddHttpClient();
 
 builder.Services.AddScoped<IAuthService, AuthService>();
+//builder.Services.AddTransient<JwtMiddleware>();
 
 var app = builder.Build();
 
@@ -74,6 +74,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
+//app.UseMiddleware<JwtMiddleware>();
 
 app.UseHttpsRedirection();
 

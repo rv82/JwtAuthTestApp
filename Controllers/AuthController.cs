@@ -2,6 +2,7 @@
 using AuthTest.Services;
 using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json.Linq;
+using IdentityModel;
 
 namespace AuthTest.Controllers;
 
@@ -24,7 +25,19 @@ public class AuthController : ControllerBase
         var response = await _authService.GetTokenAsync(authModel);
         var jObject = JObject.Parse(response);
         var token = (string?)jObject["access_token"];
-        //var tokenType = (string?)jObject["token_type"];
+
         return string.IsNullOrEmpty(token) ? "error" : token;
+    }
+
+    [HttpPost("introspect")]
+    public Task<string?> IntrospectTokenAsync([FromBody] IntrospectionRequestModel model)
+    {
+        return _authService.IntrospectTokenAsync(model.Token);
+    }
+
+    [HttpPost("refresh")]
+    public Task<string> RefreshTokenAsync([FromBody] RefreshTokenRequestModel model)
+    {
+        return _authService.RefreshTokenAsync(model.RefreshToken);
     }
 }
