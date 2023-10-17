@@ -40,4 +40,10 @@ public class AuthController : ControllerBase
     {
         return _authService.RefreshTokenAsync(model.RefreshToken);
     }
+
+    /* [HttpGet("jwks")]
+    public Task<string> GetJsonWebKitAsync()
+    {
+        return _authService.GetJsonWebKeysAsync();
+    } */
 }
